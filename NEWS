@@ -13,6 +13,10 @@
    the libraries and frontend programs.
 -- Added --enable-portable and --disable-largefile to configure, removing the other
    largefile-related options.
+-- Added --disable-components --enable-libmpg123 to only build libmpg123 (and likewise
+   --enable-libout123, --enable-libsyn123) to autoconf build. CMake build has something
+   similar with BUILD_PROGRAMS and BUILD_LIBOUT123, which leave only libmpg123 and libsyn123
+   if disabled). (bug 351)
 - ports/Sony_PSP: removed
 - mpg123:
 -- Added --libversion.
@@ -39,6 +43,9 @@
    integers, regardless of internal implementation. (bug 344)
 -- Introduced MPG123_PORTABLE_API for an API subset without off_t and
    ssize_t.
+-- Made mpg123_seek() and friends ignore offset sign for SEEK_END (always seeking
+   towards beginning, assuming negative offset) to make lseek()-conforming usage
+   possible. Seeking beyond the end never made sense, so no loss of valid functionality.
 
 1.31.3
 ------
