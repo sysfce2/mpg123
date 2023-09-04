@@ -222,8 +222,11 @@ if(MSVC AND MACHINE MATCHES "x86|amd64" AND YASM_ASSEMBLER)
         get_filename_component(FILENAME ${FILE} NAME)
         add_custom_command(
             OUTPUT ${FILENAME}.asm
-            COMMAND ${CMAKE_C_COMPILER} /DASMALIGN_BALIGN ${PLATFORM_DEFINITIONS}
+            COMMAND ${CMAKE_C_COMPILER} /nologo /DASMALIGN_BALIGN ${PLATFORM_DEFINITIONS}
             /I"${PROJECT_SOURCE_DIR}/../../src" /I"${PROJECT_BINARY_DIR}/src" /P /Fi${FILENAME}.asm /Tc "${FILE}"
+            COMMAND ${CMAKE_COMMAND} -E echo "start echo ${FILE}"
+            COMMAND ${CMAKE_COMMAND} -E cat "${FILE}"
+            COMMAND ${CMAKE_COMMAND} -E echo "end echo ${FILE}"
             DEPENDS ${FILE}
             WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
         add_custom_command(
