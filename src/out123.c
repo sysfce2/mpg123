@@ -1,7 +1,7 @@
 /*
 	out123: stream data from libmpg123 or libsyn123 to an audio output device
 
-	copyright 1995-2023 by the mpg123 project,
+	copyright 1995-2025 by the mpg123 project,
 	free software under the terms of the LGPL 2.1
 	see COPYING and AUTHORS files in distribution or http://mpg123.org
 
@@ -27,15 +27,12 @@
 */
 
 #define ME "out123"
-#include "config.h"
+#include "mpg123config.h"
 #include "version.h"
 #include "compat/compat.h"
 #include <ctype.h>
-#if _WIN32
+#ifdef _WIN32
 #include "win32_support.h"
-#endif
-#if defined(_WIN32) && defined(DYNAMIC_BUILD)
-#define LINK_MPG123_DLL
 #endif
 #include "out123.h"
 
@@ -210,7 +207,7 @@ static void controlled_drain(void)
 
 static void safe_exit(int code)
 {
-	char *dummy, *dammy;
+	const char *dummy, *dammy;
 
 	if(input && input != stdin)
 		INT123_compat_fclose(input);
@@ -773,6 +770,19 @@ static void setup_wavegen(void)
 		}
 		for(size_t fi=0; fi<fl->count; ++fi)
 		{
+			if(verbose)
+			{
+				fprintf( stderr, ME ": set up filter %zu of order %u\n"
+				,	fi, fl->f[fi].order );
+				fprintf(stderr, ME ": b =");
+				for(unsigned int ci=0; ci<=fl->f[fi].order; ++ci)
+					fprintf(stderr, " %g", fl->f[fi].b[ci]);
+				fprintf(stderr, "\n");
+				fprintf(stderr, ME ": a =");
+				for(unsigned int ci=0; ci<=fl->f[fi].order; ++ci)
+					fprintf(stderr, " %g", fl->f[fi].a[ci]);
+				fprintf(stderr, "\n");
+			}
 			int err = syn123_setup_filter( waver, 1
 			,	fl->f[fi].order, fl->f[fi].b, fl->f[fi].a
 			,	mixenc, channels, 1 );
@@ -1146,9 +1156,9 @@ int play_frame(void)
 		return 0;
 
 	if(byte_in_flags & byte_big)
-		syn123_be2host(inaudio, pcminframe/channels, got_samples*inputch);
+		syn123_be2host(inaudio, pcminframe/inputch, got_samples*inputch);
 	if(byte_in_flags & byte_little)
-		syn123_le2host(inaudio, pcminframe/channels, got_samples*inputch);
+		syn123_le2host(inaudio, pcminframe/inputch, got_samples*inputch);
 
 	if(mixaudio)
 	{
@@ -1630,7 +1640,10 @@ int main(int sys_argc, char ** sys_argv)
 	}
 
 	if(strcmp(signal_source, "file"))
+	{
+		had_something = 1;
 		generate = TRUE;
+	}
 	else
 		input = open_next_file(argc, argv, 1);
 

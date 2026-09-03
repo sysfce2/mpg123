@@ -13,6 +13,8 @@ jobs:
           path: |
             ${{ github.workspace }}/yasm
           key: yasm
+      - name: Checkout sources
+        uses: actions/checkout@v4
       - name: Download yasm sources
         if: ${{ !steps.restore-yasm.outputs.cache-hit }}
         uses: actions/checkout@v4
@@ -35,7 +37,7 @@ jobs:
           cmake --install yasm-build
       - name: Cache yasm
         if: ${{ !steps.restore-yasm.outputs.cache-hit }}
-        uses: actions/cache/save@v3
+        uses: actions/cache/save@v4
         with:
           path: |
             ${{ github.workspace }}/yasm
@@ -49,10 +51,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # currently windows-latest==windows-2022
+        # currently windows-latest==windows-2025
         # windows-2022: VS2022
-        # windows-2019: VS2019
-        os: [windows-2022, windows-2019]
+        # windows-2025: VS2022
+        os: [windows-2022, windows-2025]
         arch: [x86, x64, amd64_arm, amd64_arm64]
         shared: [ON, OFF]
         yasm: [true, false]

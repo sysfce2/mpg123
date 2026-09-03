@@ -51,15 +51,15 @@ real* INT123_init_layer12_table(mpg123_handle *fr, real *table, int m)
 #ifdef OPT_MMXORSSE
 real* INT123_init_layer12_table_mmx(mpg123_handle *fr, real *table, int m)
 {
-	int i,j;
+	int i;
 	if(!fr->p.down_sample) 
 	{
-		for(j=3,i=0;i<63;i++,j--)
+		for(i=0;i<63;i++)
 			*table++ = 16384 * layer12_table[m][i];
 	}
 	else
 	{
-		for(j=3,i=0;i<63;i++,j--)
+		for(i=0;i<63;i++)
 			*table++ = layer12_table[m][i];
 	}
 	return table;
@@ -341,7 +341,8 @@ int INT123_do_layer2(mpg123_handle *fr)
 
 	if(fr->jsbound > fr->II_sblimit)
 	{
-		fprintf(stderr, "Truncating stereo boundary to sideband limit.\n");
+		if(NOQUIET)
+			error("Truncating stereo boundary to sideband limit.");
 		fr->jsbound=fr->II_sblimit;
 	}
 

@@ -1,7 +1,9 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.27)
+
+set(MPG123_SOURCE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../..")
 
 include(cmake/read_api_version.cmake)
-read_api_version(MPG123_VERSION)
+read_project_version(MPG123_VERSION)
 
 project(mpg123 VERSION ${MPG123_VERSION} LANGUAGES C ASM)
 set(CMAKE_C_STANDARD 99)
@@ -53,18 +55,8 @@ install(
         "${CMAKE_CURRENT_BINARY_DIR}/libsyn123.pc"
     DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
 if(BUILD_LIBOUT123)
-install(
-    FILES
-        "${CMAKE_CURRENT_SOURCE_DIR}/../../man1/mpg123.1"
-        "${CMAKE_CURRENT_SOURCE_DIR}/../../man1/out123.1"
-    DESTINATION "${CMAKE_INSTALL_MANDIR}")
-
     install(
         FILES
             "${CMAKE_CURRENT_BINARY_DIR}/libout123.pc"
         DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
-    install(
-        FILES
-            "${CMAKE_CURRENT_SOURCE_DIR}/../../man1/out123.1"
-        DESTINATION "${CMAKE_INSTALL_MANDIR}")
 endif()

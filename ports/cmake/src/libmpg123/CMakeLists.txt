@@ -64,7 +64,7 @@ add_library(${TARGET}
     "${CMAKE_CURRENT_SOURCE_DIR}/../../../../src/libmpg123/$<$<NOT:$<BOOL:${PORTABLE_API}>>:lfs_wrap.c>"
     $<TARGET_OBJECTS:compat>)
 
-if(MSVC)
+if(MSVC AND NOT CMAKE_C_COMPILER_ID STREQUAL "Clang")
     if(MACHINE MATCHES "x86|amd64")
       find_program(YASM_ASSEMBLER yasm)
       if(NOT YASM_ASSEMBLER)
@@ -204,7 +204,12 @@ elseif(MACHINE STREQUAL "generic")
     set(PLATFORM_DEFINITIONS OPT_GENERIC)
 endif()
 
+read_mpg123_api_version(mpg123_soversion mpg123_version)
 set_target_properties(${TARGET} PROPERTIES OUTPUT_NAME mpg123)
+set_target_properties(${TARGET} PROPERTIES PREFIX lib)
+set_target_properties(${TARGET} PROPERTIES SOVERSION ${mpg123_soversion})
+set_target_properties(${TARGET} PROPERTIES VERSION ${mpg123_version})
+set_target_properties(${TARGET} PROPERTIES DLL_NAME_WITH_SOVERSION TRUE)
 
 target_compile_definitions(${TARGET} PRIVATE
     $<$<BOOL:$<TARGET_PROPERTY:POSITION_INDEPENDENT_CODE>>:PIC>)
@@ -214,13 +219,13 @@ target_compile_definitions(${TARGET} PRIVATE
     $<$<BOOL:${HAVE_FPU}>:REAL_IS_FLOAT>
     $<$<NOT:$<BOOL:${HAVE_FPU}>>:REAL_IS_FIXED>)
 
-if(MSVC AND MACHINE MATCHES "x86|amd64" AND YASM_ASSEMBLER)
+if(MSVC AND NOT CMAKE_C_COMPILER_ID STREQUAL "Clang" AND MACHINE MATCHES "x86|amd64" AND YASM_ASSEMBLER)
     list(TRANSFORM PLATFORM_DEFINITIONS PREPEND /D)
     foreach(FILE ${PLATFORM_SOURCES})
         get_filename_component(FILENAME ${FILE} NAME)
         add_custom_command(
             OUTPUT ${FILENAME}.asm
-            COMMAND ${CMAKE_C_COMPILER} /DASMALIGN_BALIGN ${PLATFORM_DEFINITIONS}
+            COMMAND ${CMAKE_C_COMPILER} /nologo /DASMALIGN_BALIGN ${PLATFORM_DEFINITIONS}
             /I"${PROJECT_SOURCE_DIR}/../../src" /I"${PROJECT_BINARY_DIR}/src" /P /Fi${FILENAME}.asm /Tc "${FILE}"
             DEPENDS ${FILE}
             WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")

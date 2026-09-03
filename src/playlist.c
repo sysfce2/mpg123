@@ -34,6 +34,14 @@
 
 enum playlist_type { UNKNOWN = 0, M3U, PLS, NO_LIST };
 
+enum playflag
+{
+	PL_IS_UTF8 = 1 // if we really know the contents are UTF-8-encooded
+,	PL_HIT_END = 2
+,	PL_STDIN_USED = 4 // If the playlist itself or an input file was '-' (stdin not usable for terminal.).
+,	PL_NO_RANDOM = 8
+};
+
 typedef struct listitem
 {
 	char* url; /* the filename */
@@ -56,10 +64,7 @@ typedef struct playlist_struct
 	mpg123_string linebuf;
 	mpg123_string dir;
 	enum playlist_type type;
-	int is_utf8; /* if we really know the contents are UTF-8-encooded */
-	int hit_end;
-	// If the playlist itself or an input file was '-' (stdin not usable for terminal.).
-	int stdin_used;
+	unsigned int flags;
 } playlist_struct;
 
 /* one global instance... add a pointer to this to every function definition and you have OO-style... */
@@ -97,7 +102,7 @@ void prepare_playlist(int argc, char** argv, int args_utf8, int *is_utf8)
 	mpg123_free_string(&pl.linebuf);
 	mpg123_free_string(&pl.dir);
 	if(is_utf8)
-		*is_utf8 = pl.is_utf8;
+		*is_utf8 = (pl.flags & PL_IS_UTF8) != 0;
 }
 
 /* Return a random number >= 0 and < n */
@@ -142,9 +147,9 @@ char *get_next_file(void)
 	}
 	else
 	{
-		/* Handle looping first, but only if there is a random track selection
-		   presently active (see playlist_jump() for interaction). */
-		if(!(pl.num && ((pl.loop > 0 && --pl.loop) || pl.loop < 0)))
+		// Handle looping first, but only if there is a random track selection
+		// Also applies to continue mode.
+		if(!(pl.num && ((pl.loop > 0 && --pl.loop) || pl.loop < 0)) && !(pl.flags & PL_NO_RANDOM))
 		{
 			/* Randomly select the next track. */
 			do /* limiting randomness: don't repeat too early */
@@ -155,8 +160,16 @@ char *get_next_file(void)
 			pl.loop = param.loop;
 		}
 
-		newitem = &pl.list[pl.pos];
-		pl.num = pl.pos+1;
+		if(pl.pos < pl.fill)
+		{
+			newitem = &pl.list[pl.pos];
+			pl.num = pl.pos+1;
+			pl.flags &= ~PL_NO_RANDOM; // The random blocking works only once.
+		} else
+		{
+			merror("Playlist position %zu beyond end of list fill %zu!", pl.pos+1, pl.fill);
+			newitem = NULL;
+		}
 	}
 
 	/* "-" is STDIN, "" is dumb, NULL is nothing */
@@ -168,7 +181,7 @@ char *get_next_file(void)
 	}
 	else
 	{
-		pl.hit_end = TRUE;
+		pl.flags |= PL_HIT_END;
 		return NULL;
 	}
 }
@@ -179,7 +192,7 @@ size_t playlist_pos(size_t *total, long *loop)
 		*total = pl.fill;
 	if(loop)
 		*loop = pl.loop;
-	return pl.hit_end ? pl.fill+1 : pl.num;
+	return pl.flags & PL_HIT_END ? pl.fill+1 : pl.num;
 }
 
 void playlist_jump(mpg123_ssize_t incr)
@@ -286,23 +299,23 @@ static void init_playlist(void)
 	pl.fill = 0;
 	pl.pos = 0;
 	pl.num = 0;
-	if(APPFLAG(MPG123APP_CONTINUE) && param.listentry > 0)
-	pl.pos = param.listentry - 1;
-
 	pl.list = NULL;
 	pl.alloc_step = 10;
 	mpg123_init_string(&pl.dir);
 	mpg123_init_string(&pl.linebuf);
 	pl.type = UNKNOWN;
-	pl.is_utf8 = FALSE;
-	pl.hit_end = FALSE;
+	pl.flags = 0;
 	pl.loop = param.loop;
-	pl.stdin_used = FALSE;
+	if(APPFLAG(MPG123APP_CONTINUE) && param.listentry > 0)
+	{
+		pl.pos = param.listentry - 1;
+		pl.flags |= PL_NO_RANDOM; // Skip random selection for first track.
+	}
 }
 
 int playlist_stdin(void)
 {
-	return pl.stdin_used;
+	return (pl.flags & PL_STDIN_USED) != 0;
 }
 
 /*
@@ -314,7 +327,10 @@ static int add_next_file (int argc, char *argv[], int args_utf8)
 {
 	int firstline = 0;
 
-	pl.is_utf8 = args_utf8;
+	if(args_utf8)
+		pl.flags |= PL_IS_UTF8;
+	else
+		pl.flags &= ~PL_IS_UTF8;
 
 	/* hack for url that has been detected as track, not playlist */
 	if(pl.type == NO_LIST) return 0;
@@ -343,17 +359,18 @@ static int add_next_file (int argc, char *argv[], int args_utf8)
 	if (param.listname || pl.file)
 	{
 		size_t line_offset = 0;
-		pl.is_utf8 = 0; // Playlist files in env encoding (HTTP lists should be ASCII-clean).
+		pl.flags &= ~PL_IS_UTF8; // Playlist files in env encoding (HTTP lists should be ASCII-clean).
 		if(!pl.file)
 		{
+			char *eff_listname = param.listname;
 			pl.file = stream_open(param.listname);
 			if(pl.file)
 			{
 				firstline = 1; /* just opened */
 				if(pl.file->fd == STDIN_FILENO)
 				{
-					pl.stdin_used = TRUE;
-					param.listname = NULL;
+					pl.flags |= PL_STDIN_USED;
+					eff_listname = NULL;
 				}
 			}
 			pl.entry = 0;
@@ -393,7 +410,7 @@ static int add_next_file (int argc, char *argv[], int args_utf8)
 							}
 						}
 						char *ptmp = NULL;
-						outstr(&ptmp, pl.file->htd.content_type.p, 0, stderr_is_term);
+						outstr(&ptmp, pl.file->htd.content_type.p, 1, stderr_is_term);
 						error1( "Unknown playlist MIME type %s; maybe "PACKAGE_NAME
 							" can support it in future if you report this to the maintainer."
 						,	PSTR(ptmp) );
@@ -406,13 +423,12 @@ static int add_next_file (int argc, char *argv[], int args_utf8)
 #endif
 			if(!pl.file)
 			{
-				param.listname = NULL; // why?
 				error("failed to open playlist file");
 				return 0;
 			} else if(param.verbose)
 			{
 				fprintf(stderr, "Using playlist from ");
-				print_outstr( stderr, param.listname ? param.listname : "standard input"
+				print_outstr( stderr, eff_listname ? eff_listname : "standard input"
 				,	args_utf8, stderr_is_term );
 				fprintf(stderr, " ...\n");
 			}
@@ -654,7 +670,9 @@ static int add_to_playlist(char* new_entry, char freeit)
 	{
 		struct listitem* tmp = NULL;
 		/* enlarge the list */
-		tmp = (struct listitem*) INT123_safe_realloc(pl.list, (pl.size + pl.alloc_step) * sizeof(struct listitem));
+		tmp = (pl.size <= (SIZE_MAX-pl.alloc_step))
+		?	INT123_safe_reallocn(pl.list, (pl.size + pl.alloc_step), sizeof(struct listitem))
+		:	NULL;
 		if(!tmp)
 		{
 			error("unable to allocate more memory for playlist");
@@ -671,7 +689,7 @@ static int add_to_playlist(char* new_entry, char freeit)
 	if(pl.fill < pl.size)
 	{
 		if(!strcmp(new_entry, "-") || !strcmp(new_entry, "/dev/stdin"))
-			pl.stdin_used = TRUE;
+			pl.flags |= PL_STDIN_USED;
 		pl.list[pl.fill].freeit = freeit;
 		pl.list[pl.fill].url = new_entry;
 		pl.list[pl.fill].playcount = 0;

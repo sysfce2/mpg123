@@ -74,9 +74,9 @@ check_function_exists(execvp HAVE_EXECVP)
 check_function_exists(ctermid HAVE_CTERMID)
 check_function_exists(clock_gettime HAVE_CLOCK_GETTIME)
 
-check_type_size(off_t SIZEOF_OFF_T)
+check_type_size(off_t MPG123_SIZEOF_OFF_T)
 
-if(SIZEOF_OFF_T LESS 8)
+if(MPG123_SIZEOF_OFF_T LESS 8)
 check_function_exists(lseek64 LFS_LARGEFILE_64)
 
 if(LFS_LARGEFILE_64)
@@ -98,10 +98,10 @@ search_libs(socket SOCKET_LIB socket)
 test_big_endian(WORDS_BIGENDIAN)
 
 check_c_source_compiles(
-    "int main() { __asm__(\".balign 4\"); return 0; }"
+    "__asm__(\".balign 4\"); int main() { return 0; }"
     ASMALIGN_BALIGN)
 check_c_source_compiles(
-    "int main() { __asm__(\".align 3\"); return 0; }"
+    "__asm__(\".align 3\"); int main() { return 0; }"
     ASMALIGN_EXP)
 if(NOT ASMALIGN_EXP)
     set(ASMALIGN_BYTE ON)
@@ -196,8 +196,10 @@ check_cpu_arch_x64(ARCH_IS_X64)
 check_cpu_arch_arm32(ARCH_IS_ARM32)
 check_cpu_arch_arm64(ARCH_IS_ARM64)
 
-if(WIN32 OR (ARCH_IS_ARM64 AND APPLE))
+if(WIN32 OR ARCH_IS_ARM64)
     set(HAVE_FPU 1)
+elseif(CMAKE_CROSSCOMPILING OR DEFINED HAVE_FPU)
+    set(HAVE_FPU 1 CACHE STRING "Override in triplet if needed")
 else()
     cmake_host_system_information(RESULT HAVE_FPU QUERY HAS_FPU)
 endif()
@@ -456,7 +458,14 @@ if(UNIX AND NOT PORTABLE_API)
             ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}/"
             LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}/"
             RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}/")
-    endif()
+
+        install(
+           FILES
+            "${CMAKE_CURRENT_SOURCE_DIR}/../../../man1/mpg123.1"
+            "${CMAKE_CURRENT_SOURCE_DIR}/../../../man1/out123.1"
+           DESTINATION "${CMAKE_INSTALL_MANDIR}")
+
+   endif()
 endif()
 
 configure_file(config.cmake.h.in config.h)
